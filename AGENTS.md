@@ -12,7 +12,7 @@ See `docs/SPEC.md` for the full build specification (signals, weights, threshold
 
 - Tool: `tagorigin`. Classifies a PDF's tag-tree provenance.
 - Maintainer: EquitableDocs.
-- License: MIT.
+- License: Apache 2.0.
 - Language: Python 3.10+.
 - Primary library: `pikepdf`.
 - CLI framework: `typer`.

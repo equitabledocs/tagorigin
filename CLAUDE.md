@@ -8,6 +8,23 @@ A Python CLI tool plus optional FastAPI wrapper that classifies a PDF's tag-tree
 
 Detailed design, signal list, weights, thresholds, output schema, and CLI surface live in `docs/SPEC.md`. Do not re-derive any of that; follow the spec.
 
+## How this is hosted (read me before assuming this repo owns the public surface)
+
+`tagorigin` is the codename and the Python package name. The **public-facing tool name is "PDF Tag Quality Check"**. The hosted instance lives at `app.equitabledocs.org/tag-quality-check/` and is wired in a separate repo:
+
+- **Library + standalone landing page:** this repo (`github.com/equitabledocs/tagorigin`). Includes CLI, library API, standalone FastAPI app, standalone landing page at `tagorigin/static/index.html`.
+- **Hosted portal wiring:** `equitabledocs-portal` repo, under `app/routers/tagorigin.py`, `app/services/tagorigin_audit.py`, `app/templates/tagorigin/`. Owned by portal-claude. The portal pins this repo as a git+https dependency and re-exports the audit endpoints behind the portal's policy stack (50 MB cap, ClamAV scan, no auth, no rate limit, zero-day original retention, 30-day derived retention).
+
+Coordination rules:
+
+- **Bugs in the classifier, signal weights, report rendering, or spec** are fixed in this repo. portal-claude raises them as issues for tagorigin-claude to handle here.
+- **Hosting, routing, auth, rate-limiting, sidebar, telemetry** are owned by portal-claude in the portal repo. Do not patch these in the standalone FastAPI app and expect them to reach the hosted surface.
+- **Cross-cutting decisions** are logged in the program tower at `C:\Users\deepa\Projects\equitabledocs-program\DECISIONS.md` (D-P06 launch, D-P07 hosted toolset adoption, D-P08 Apache 2.0, D-P09 public name and slug). Read the tower at session start.
+
+## Naming discipline
+
+The public name "PDF Tag Quality Check" is mild jargon for someone who has never opened a PDF in Acrobat. The promise that mitigates this: **every public surface that shows the name must also carry the question H1 "Is this PDF really accessible, or just tagged?"** (or a near-equivalent). If a redesign drops the question framing, the name alone becomes opaque. This applies to the standalone landing page in this repo, the hosted portal page, and the marketing-site catalogue entry on `equitabledocs.org`.
+
 ## Build phases
 
 Work through the phases in order. Do not skip ahead.

@@ -71,10 +71,38 @@ samples from the PDF Association Matterhorn Protocol test suite.
 
 See `docs/SPEC.md` for the full build specification.
 
+## Use cases
+
+### Within EquitableDocs
+
+**Portal intake triage.** When a student or partner uploads a document, run tagorigin before routing. UNTAGGED goes through OCR plus full tagging. AUTO_TAGGED gets flagged so the remediator does not assume the existing tags are trustworthy. REMEDIATED and WELL_REMEDIATED get fast-tracked through validation only. This is real cost saving on volunteer time.
+
+**Before/after evidence for our own pipeline.** Run tagorigin on the publisher original and on the delivered file. The classification jump (AUTO_TAGGED to REMEDIATED) becomes the receipt that human work happened. Useful for the transparency page and for funder reports.
+
+**University procurement vetting.** When a partner university tells you their incumbent vendor charges Rs 150 per page and delivers "accessible PDFs", tagorigin lets them check whether they are paying for remediation or for an autotag pass with a markup. This is the single most expensive misconception in the Indian market and the tool addresses it directly. It also strengthens the cost-only pricing pitch.
+
+**Document Accessibility Check companion.** Document Accessibility Check tells the user what is wrong against WCAG and Matterhorn. tagorigin tells them where the tags came from in the first place. Different question, complementary surface.
+
+### Outside EquitableDocs
+
+- **Publisher self-audit.** InDesign, Word, and Pages export shops can run their own output through it before shipping to libraries. The "your file is AUTO_TAGGED, not REMEDIATED" verdict is a clear next-step trigger.
+- **Government and procurement officers.** RPwD compliance reviews, GIGW audits, public-sector RFP scoring. A reviewer can demand a tagorigin classification as part of vendor delivery proof.
+- **University library acquisitions.** Before signing publisher e-textbook contracts, libraries can sample-check claims of "accessible PDF" delivery.
+- **Training tool.** A teaching aid for the Accessibility Collective. Members learn the difference between tagged and remediated by running the tool on known-good and known-bad files and reading the per-signal evidence.
+- **Litigation support and DPO complaints.** Where an institution claims a document was accessible, a tagorigin report with signal evidence is documentary proof of the opposite.
+
+## Known limits
+
+- It is a heuristic classifier, not a proof. The SPEC documents that signals M3, M4, and M5 misfire on PDFix in-place saves where the producer string is preserved. The per-signal evidence output partially mitigates this, but borderline AUTO vs LIGHTLY cases will sometimes be wrong.
+- The WELL_REMEDIATED bucket has no real-world calibration samples yet. The Matterhorn Protocol test suite is the next planned source.
+- "tagorigin" is an engineery codename. For the public web surface a plain-language name (such as "Tag Origin Check") will replace it.
+
 ## How to contribute
 
 This repo is built and maintained under [EquitableDocs](https://equitabledocs.org). Read `docs/SPEC.md` for the full build spec, then `CLAUDE.md` or `AGENTS.md` for the agent-facing project instructions.
 
 ## Licence
 
-MIT. See `LICENSE`.
+Apache License 2.0. See `LICENSE`. Attribution notices for redistribution are in `NOTICE`.
+
+The Apache 2.0 grant covers code, not brand. "EquitableDocs" and the public-facing tool name are trademarks of EquitableDocs and are not licensed under Apache 2.0. Forks may use the code; they may not present themselves as EquitableDocs or as tagorigin.

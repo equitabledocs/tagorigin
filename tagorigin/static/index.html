@@ -15,6 +15,7 @@
   <div class="container">
     <a href="/" class="brand">tagorigin</a>
     <nav aria-label="Primary">
+      <a href="#why">Why it matters</a>
       <a href="#how">How it works</a>
       <a href="#who">Who uses it</a>
       <a href="https://github.com/equitabledocs/tagorigin">GitHub</a>
@@ -37,6 +38,76 @@
 </section>
 
 <main id="main">
+
+<section id="why" class="alt-section">
+  <div class="container">
+    <h2>Why this matters</h2>
+
+    <h3>Tagged is not the same as accessible</h3>
+    <p>
+      A tagged PDF has a structure tree inside it. Many people, including
+      experienced procurement officers and disability services staff, see
+      a tag tree in Adobe Acrobat and conclude the document is accessible.
+      That conclusion is wrong often enough to be the single most common
+      misconception in document accessibility work. Tags can be present,
+      complete, and still useless to a screen reader user.
+    </p>
+
+    <h3>How tags land in PDFs without human review</h3>
+    <p>There are two routes:</p>
+    <ol>
+      <li>
+        <strong>Authoring tool export.</strong> Adobe InDesign, Microsoft
+        Word, Apple Pages, Google Docs, and LibreOffice all add tags when
+        you export a PDF. The tags reflect the source document's styles.
+        If the source was not styled carefully, the tags carry those
+        problems straight into the PDF.
+      </li>
+      <li>
+        <strong>One-click autotag.</strong> Acrobat Pro's "Autotag
+        Document" menu, PDFix in autotag mode, Foxit's autotag, and
+        Word's built-in accessibility-check auto-fix all add tags by
+        inferring structure from the page's appearance. No person reviews
+        the result.
+      </li>
+    </ol>
+    <p>
+      Both routes commonly produce the same defects: generic alt text
+      such as "image" or "figure", numbered lists tagged as plain
+      paragraphs, reading order that follows text-frame placement instead
+      of the visual layout, table headers with no scope attribute, and
+      decorative images that screen readers announce as content.
+    </p>
+
+    <h3>What a real remediation pass involves</h3>
+    <p>
+      A remediated PDF has been opened in a tool that lets a person edit
+      the tag tree directly: Adobe Acrobat Pro's Touchup Reading Order,
+      PDFix's interactive editor, CommonLook, axesPDF, or NetCentric. A
+      person has written meaningful alt text, applied list structure,
+      set scope on table headers, fixed reading order, and marked
+      decorative content as artifacts. That work takes time and
+      judgement. It is not a button press.
+    </p>
+
+    <h3>What goes wrong when nobody knows the difference</h3>
+    <p>
+      For a student using a screen reader, an autotag-only PDF is often
+      unreadable. Headings that should let them skim are missing.
+      Figures announce as "image" instead of describing what the diagram
+      shows. Tables read across cells without telling them which row or
+      column they are in. The document exists on the screen but cannot
+      be read.
+    </p>
+    <p>
+      For an institution, the misconception is expensive. A vendor can
+      charge full remediation rates and deliver an autotag pass. The tag
+      tree will look full in Acrobat. The delivered file will still fail
+      in the hands of the students it was meant to serve. tagorigin
+      shows you which one you have, and which one you paid for.
+    </p>
+  </div>
+</section>
 
 <section class="upload-section">
   <div class="container">
@@ -146,8 +217,8 @@
     </p>
     <p>
       For sensitive documents we recommend installing tagorigin locally and
-      running it via the command line. The tool is open source under the
-      MIT licence. See <a href="https://github.com/equitabledocs/tagorigin">github.com/equitabledocs/tagorigin</a>.
+      running it via the command line. The tool is released under the
+      Apache 2.0 licence. See <a href="https://github.com/equitabledocs/tagorigin">github.com/equitabledocs/tagorigin</a>.
     </p>
   </div>
 </section>
@@ -159,7 +230,7 @@
     <p>
       <strong>tagorigin</strong>. Part of the
       <a href="https://equitabledocs.org">EquitableDocs</a> initiative.
-      Open source under the MIT licence.
+      Released under the Apache 2.0 licence.
     </p>
     <p>
       <a href="https://github.com/equitabledocs/tagorigin">GitHub repository</a>
