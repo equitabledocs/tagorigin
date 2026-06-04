@@ -9,9 +9,16 @@
 
 ## 0. Why this tool exists (one paragraph for the agent)
 
-In accessibility work there is a widespread, costly misconception: people see a tagged PDF (one that has a `/StructTreeRoot` and structure elements like `/Document`, `/H1`, `/P`, `/Figure`) and assume it has been "remediated for accessibility". That is wrong. Authoring tools like Adobe InDesign, Microsoft Word, and Apple Pages emit structure tags automatically on export, with no human accessibility review. Those auto-emitted tags routinely fail PDF/UA and WCAG 2.1 AA because of generic alt text, lists tagged as paragraphs, reading order following text-frame placement rather than visual layout, missing scope attributes on table headers, and so on. An actively remediated PDF, by contrast, has been opened by a dedicated accessibility tool (Adobe Acrobat Pro Touchup, PDFix SDK, CommonLook, axesPDF, NetCentric) and edited with intent. The two are visually similar in the Tags panel but very different in downstream behaviour.
+In accessibility work there is a widespread, costly misconception: people see a tagged PDF (one that has a `/StructTreeRoot` and structure elements like `/Document`, `/H1`, `/P`, `/Figure`) and assume it has been "remediated for accessibility". That is wrong. Tags can come from at least two kinds of automatic process with no human accessibility review:
 
-This tool tells you which one you have. It reads a PDF, runs a set of signals, and outputs one of five provenance classifications with a confidence score and per-signal evidence. The classification drives a recommendation: treat as raw publisher input (do full remediation), treat as a reteach case (correct against a vendor defect log), or accept as already-remediated.
+1. **Authoring-tool export autotag.** Adobe InDesign, Microsoft Word, Apple Pages, LibreOffice, and Google Docs export-to-PDF all emit a tag tree from the source document's styles on export. Quality varies with how well the source was styled.
+2. **Tool-level autotag run on an already-exported PDF.** Adobe Acrobat Pro's "Autotag Document" menu, Acrobat's "Add Tags to Document" command, PDFix SDK in its autotag mode, Foxit's autotag, Microsoft Word's accessibility-check auto-fix. These open a PDF and infer structure from rendered content. No human is in the loop on these either.
+
+Both kinds of autotag routinely fail PDF/UA and WCAG 2.1 AA: generic alt text, lists tagged as paragraphs, reading order following text-frame or content-stream placement rather than visual layout, missing scope on table headers, headings either missing or all collapsed to `/H1`, no artifact markings on decorative content.
+
+An actively remediated PDF, by contrast, has been opened by a dedicated accessibility tool (Adobe Acrobat Pro's Touchup Reading Order, PDFix SDK's interactive editor, CommonLook, axesPDF, NetCentric) AND edited with human intent: meaningful alt text written, list semantics applied, table scope set, reading order corrected, artifacts marked. The edit-tool fingerprint in the PDF metadata tells you which software opened the file; it does NOT tell you whether a human reviewed the tags. To distinguish autotag-only from real remediation, the tool must look at the **structural quality of the tags themselves**, not just at the metadata fingerprint. This is the central design principle of `tagorigin`.
+
+This tool tells you which one you have. It reads a PDF, runs signals across both metadata and structural quality, and outputs one of five provenance classifications with a confidence score and per-signal evidence. The classification drives a recommendation: treat as raw publisher input (do full remediation), treat as autotagged input (still needs remediation despite the tool fingerprint), treat as a reteach case (correct against a vendor defect log), or accept as already-remediated.
 
 Target users: accessibility-team intake reviewers, university procurement officers vetting vendor output, publisher QA teams self-assessing their InDesign exports, and the EquitableDocs portal upload flow.
 
@@ -24,9 +31,9 @@ Output one of:
 | Label | Meaning |
 |---|---|
 | `UNTAGGED` | No `/StructTreeRoot`, or `/StructTreeRoot` is empty. Likely a scanned PDF or pre-tagging draft. |
-| `AUTO_TAGGED` | Tags exist but were produced by the authoring tool's automatic export. No subsequent remediation pass. The Sadlier CH10 PDFs we audited on 2026-06-03 are the reference example. |
-| `LIGHTLY_REMEDIATED` | Tags show a single remediation touch (Acrobat Pro autotag re-run, basic touchup) but with limited semantic depth. Some lists, some alt text, but generic and incomplete. |
-| `REMEDIATED` | Tags reflect a deliberate remediation pass. Proper `/L`/`/LI`/`/Lbl`/`/LBody` lists, sentence-length alt text on figures, scope on table headers, artifact markings on decorative content. PDF/UA conformance metadata may be present. |
+| `AUTO_TAGGED` | Tags exist but were produced by an automatic process with no human review. Includes BOTH authoring-tool export autotag (InDesign, Word, Pages, Google Docs, LibreOffice) AND tool-level autotag run on an already-exported PDF (Acrobat Pro's "Autotag Document", PDFix's autotag mode, Foxit's autotag, Word's accessibility-check auto-fix). The metadata fingerprint may show any of these tools; what makes the file `AUTO_TAGGED` is that the structural quality is auto-tool quality, not human-reviewed quality. The Sadlier CH10 PDFs we audited on 2026-06-03 are the reference example for the InDesign-export-only subcase. |
+| `LIGHTLY_REMEDIATED` | Tags show partial human touch: some list semantics, some alt text written, some artifacts marked, but the work is incomplete. Common when someone opened the PDF in Acrobat Pro, fixed a few obvious things, and saved without doing the full pass. |
+| `REMEDIATED` | Tags reflect a deliberate full remediation pass. Proper `/L`/`/LI`/`/Lbl`/`/LBody` lists, sentence-length alt text on figures, scope on table headers, artifact markings on decorative content. PDF/UA conformance metadata may be present. |
 | `WELL_REMEDIATED` | All of the above plus advanced markers: `/Lang` attributes at span level, PDF/UA conformance declared, complete `/StructParents` mapping, linearised (Fast Web View enabled), and (optional) Layer 5 visual reading-order verification passes. |
 
 A `confidence` field (0.0 to 1.0) accompanies the label. A `recommendation` field accompanies the label (see section 5).
@@ -42,10 +49,11 @@ Each signal has a fixed weight. The weighted sum determines the classification. 
 | ID | Signal | How to detect | Weight |
 |---|---|---|---|
 | M1 | XMP history single event | `xmpMM:History` contains exactly one `<rdf:li>` with `<stEvt:action>converted</stEvt:action>` | -1.5 |
-| M2 | XMP history multiple events | Two or more `<rdf:li>` entries in `xmpMM:History` | +1.0 |
-| M3 | XMP history names known remediator agent | Any `<stEvt:softwareAgent>` contains: `PDFix`, `Acrobat Pro` (post-conversion save), `CommonLook`, `axesPDF`, `NetCentric`, `Foxit PhantomPDF`, `Kofax Power PDF`, `Adobe Acrobat` (a save event, not the original convert) | +2.0 |
+| M2 | XMP history multiple events | Two or more `<rdf:li>` entries in `xmpMM:History` | +0.5 (weak signal: a save event can be autotag OR remediation; structural signals decide) |
+| M3 | XMP history names accessibility-capable tool | Any `<stEvt:softwareAgent>` contains: `PDFix`, `Acrobat Pro`, `Adobe Acrobat` (save event), `CommonLook`, `axesPDF`, `NetCentric`, `Foxit PhantomPDF`, `Kofax Power PDF`. **Weight depends on structural quality (see override rules in 2.5).** Default weight if unmoderated: +0.5 (presence only; intent unproven) |
 | M4 | `/Producer` is pure authoring tool | `Adobe PDF Library X.X` (paired with InDesign), `Microsoft® Word X` (paired with Word `/Creator`), `Pages X.X`, `LibreOffice X.X`, `Mac OS X X X Quartz PDFContext` | -1.5 |
-| M5 | `/Producer` is remediation tool | `PDFix SDK`, `Acrobat Pro DC`, `Acrobat Distiller` (post-edit), `CommonLook`, `axesPDF`, `NetCentric Technology` | +1.5 |
+| M5 | `/Producer` is accessibility-capable tool | `PDFix SDK`, `Acrobat Pro DC`, `Adobe Acrobat X DC`, `CommonLook`, `axesPDF`, `NetCentric Technology`. **Weight depends on structural quality (see override rules in 2.5).** Default weight if unmoderated: +0.5 |
+| M5b | `/Producer` is a known autotag-only output | `Acrobat Distiller` (post-Distiller flatten with autotag), Word's "Save as PDF with accessibility check", PDFix CLI invoked in `autotag` mode (detectable when XMP includes `pdfix:Mode=AutoTag` or similar) | -0.5 (tags exist but were generated automatically) |
 | M6 | PDF/UA conformance declared | XMP contains `<pdfuaid:part>1</pdfuaid:part>` | +2.0 |
 | M7 | Linearised (Fast Web View enabled) | PDF has a `/Linearized` dictionary in object 1 | +0.5 |
 | M8 | `/Lang` set at document level | `pdf.Root.get('/Lang')` is non-empty | +0.3 |
@@ -91,21 +99,37 @@ If a vision model is available (Claude, GPT-4V, Kimi vision):
 
 Vision signals are gated behind a `--vision` CLI flag and a model-provider env var. Without them, the tool still produces a classification from M and S signals alone.
 
-### 2.5 Classification thresholds
+### 2.5 Classification thresholds and override rules
 
-Sum the weights of all fired signals. Apply rules in order:
+Apply the following rules in order. **Override rules take priority over the score-based mapping** because the central design principle of this tool is: metadata says which tool touched the file; structural quality says whether a human reviewed the tags. When metadata and structure disagree, structure wins.
 
-1. If S1 fires → `UNTAGGED`, confidence 1.0
-2. Otherwise compute `score = sum of fired-signal weights`
-3. Map score to label:
-   - `score < -2`: `AUTO_TAGGED`, confidence = min(1.0, abs(score) / 5)
-   - `-2 <= score < 0`: `AUTO_TAGGED`, confidence = 0.5 + abs(score) / 4
-   - `0 <= score < 2`: `LIGHTLY_REMEDIATED`, confidence = 0.5 + score / 4
-   - `2 <= score < 5`: `REMEDIATED`, confidence = 0.6 + score / 10
-   - `score >= 5`: `WELL_REMEDIATED`, confidence = min(1.0, 0.7 + score / 15)
-4. Hard override: if M6 (PDF/UA declared) AND M3 (remediator agent in XMP) both fire → at minimum `REMEDIATED`
+**Step 1: Hard floor and ceiling overrides (evaluate before scoring).**
 
-These thresholds are calibrated against the test corpus in section 7 and re-tuned during the build.
+- If S1 fires (no `/StructTreeRoot`) → `UNTAGGED`, confidence 1.0. Stop.
+- **Autotag-pattern override**: if S4 fires (lists tagged as paragraphs, ratio > 0.5) OR S6 fires (figures with generic or empty alt, > 30% of figures) → cap classification at `LIGHTLY_REMEDIATED` regardless of how strong the metadata signals are. Both can fire together; cap holds. This catches the "Acrobat opened the PDF and ran Autotag, leaving an Acrobat fingerprint in XMP but no human-quality tagging" case explicitly.
+- **High-confidence remediation floor**: if S5 (figures have meaningful alt, average > 30 chars, no generic placeholders) AND S7 (every `/TH` has `/Scope`) AND S9 (artifact markings present) ALL fire → floor classification at `REMEDIATED`.
+- **PDF/UA declared sanity check**: if M6 (PDF/UA declared) fires BUT S4 or S6 also fires → drop confidence by 0.2 and reclassify down by one bucket. PDF/UA can be falsely declared; structural quality is the truth.
+
+**Step 2: Weighted-sum scoring (run only when no hard override fired).**
+
+Compute `score = sum of fired-signal weights`. Map score to label:
+
+- `score < -2`: `AUTO_TAGGED`, confidence = min(1.0, abs(score) / 5)
+- `-2 <= score < 0`: `AUTO_TAGGED`, confidence = 0.5 + abs(score) / 4
+- `0 <= score < 2`: `LIGHTLY_REMEDIATED`, confidence = 0.5 + score / 4
+- `2 <= score < 5`: `REMEDIATED`, confidence = 0.6 + score / 10
+- `score >= 5`: `WELL_REMEDIATED`, confidence = min(1.0, 0.7 + score / 15)
+
+**Step 3: Tool-fingerprint disambiguation in evidence (informational, no score change).**
+
+Even when classification is decided, the report should name the most likely process responsible for the current tag state, so the user knows what they are looking at. Pick the first matching pattern:
+
+1. M4 (pure authoring producer) + M1 (single XMP event) → "Authoring-tool export autotag (likely Adobe InDesign / Microsoft Word / Apple Pages / LibreOffice based on producer string)"
+2. M5 or M3 (accessibility-capable tool fingerprint) + S4 or S6 (autotag tells in structure) → "Tool-level autotag (likely Acrobat Pro's Autotag Document, PDFix autotag mode, or similar). Tool was used but structural quality indicates no human review."
+3. M5 or M3 + (S5 AND S7 AND S9 all firing) → "Deliberate human remediation pass (tool fingerprint and structural quality are both consistent with human review)."
+4. M6 (PDF/UA declared) + (S4 or S6 firing) → "PDF/UA declared but structural quality suggests the declaration is premature. Verify with PAC 2024."
+
+These thresholds and overrides are calibrated against the test corpus in section 7 and re-tuned during the build. The override rules are the single most important calibration target: false positives on `REMEDIATED` (autotag PDFs misclassified as remediated) are the failure mode this tool exists to prevent.
 
 ---
 
