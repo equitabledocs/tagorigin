@@ -35,8 +35,23 @@ def check(
         None, "--json-dir", help="Write per-file JSON to this folder."
     ),
     verbose: bool = typer.Option(False, "--verbose", help="Show all signals in output."),
+    vision: bool = typer.Option(
+        False,
+        "--vision",
+        help="Enable vision-assisted signals (V1, V2). Requires ANTHROPIC_API_KEY.",
+    ),
+    vision_model: str = typer.Option(
+        "claude-sonnet-4-6",
+        "--vision-model",
+        help="Vision model to use (default: claude-sonnet-4-6).",
+    ),
 ) -> None:
     """Run provenance audit on a PDF or a folder of PDFs."""
+    vision_client = None
+    if vision:
+        from tagorigin.signals.vision import AnthropicVisionClient
+        vision_client = AnthropicVisionClient(model=vision_model)
+
     if target.is_dir():
         pdfs = _find_pdfs(target, recursive)
         if not pdfs:
@@ -47,7 +62,7 @@ def check(
         for pdf in pdfs:
             try:
                 with PdfInspector.open(pdf) as inspector:
-                    result = classify(inspector, pdf)
+                    result = classify(inspector, pdf, vision_client=vision_client)
                 results.append((pdf, result))
             except Exception as exc:
                 typer.echo(f"Failed to process {pdf}: {exc}", err=True)
@@ -93,7 +108,7 @@ def check(
 
     try:
         with PdfInspector.open(target) as inspector:
-            result = classify(inspector, target)
+            result = classify(inspector, target, vision_client=vision_client)
     except Exception as exc:
         typer.echo(f"Failed to process {target}: {exc}", err=True)
         raise typer.Exit(code=1) from exc

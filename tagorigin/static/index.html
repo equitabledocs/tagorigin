@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tagorigin: is your PDF really accessible or just tagged?</title>
+<meta name="description" content="tagorigin classifies a PDF's tag-tree provenance: untagged, authoring-tool autotag, partial remediation, or full accessibility remediation. Free, open source, by EquitableDocs.">
+<link rel="stylesheet" href="/static/site.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="site-header">
+  <div class="container">
+    <a href="/" class="brand">tagorigin</a>
+    <nav aria-label="Primary">
+      <a href="#how">How it works</a>
+      <a href="#who">Who uses it</a>
+      <a href="https://github.com/equitabledocs/tagorigin">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <p class="eyebrow">By EquitableDocs</p>
+    <h1>Is this PDF really accessible, or just tagged?</h1>
+    <p class="lede">
+      Authoring tools like Adobe InDesign, Microsoft Word, and Apple Pages
+      put tags into PDFs automatically on export. Those tags routinely fail
+      accessibility standards. A properly remediated PDF has been opened by
+      a dedicated accessibility tool and edited with human intent.
+      tagorigin tells you which one you have.
+    </p>
+  </div>
+</section>
+
+<main id="main">
+
+<section class="upload-section">
+  <div class="container">
+    <h2>Audit a PDF now</h2>
+    <p>
+      Upload a PDF (50 MB maximum). Receive a provenance classification,
+      confidence score, and a per-signal evidence trail. No data retention.
+      The file is processed in memory and discarded.
+    </p>
+    <form action="/audit/html" method="post" enctype="multipart/form-data" class="upload-form">
+      <div class="form-row">
+        <label for="pdf">Choose a PDF file</label>
+        <input type="file" id="pdf" name="pdf" accept="application/pdf,.pdf" required>
+      </div>
+      <button type="submit">Audit PDF</button>
+    </form>
+    <p class="small">
+      Need raw JSON instead? POST to <code>/audit</code> with a
+      <code>pdf</code> multipart field. See the
+      <a href="https://github.com/equitabledocs/tagorigin">README</a> for the
+      output schema.
+    </p>
+  </div>
+</section>
+
+<section id="how" class="alt-section">
+  <div class="container">
+    <h2>How it works</h2>
+    <p>
+      tagorigin reads the PDF's metadata and structure tree, runs a set of
+      signals across both, and assigns one of five classifications. The
+      central design principle: <strong>metadata tells you which tool
+      touched the file; structural quality tells you whether a human
+      reviewed the tags. When they disagree, structure wins.</strong>
+    </p>
+    <div class="cards">
+      <div class="card">
+        <h3>UNTAGGED</h3>
+        <p>No structure tree. Likely a scanned PDF.
+        Treat as raw input. Run OCR plus tagging before any accessibility work.</p>
+      </div>
+      <div class="card">
+        <h3>AUTO_TAGGED</h3>
+        <p>Tags exist but came from automatic processes only.
+        InDesign export, Word export, or tool-level autotag.
+        No human review of the tags.</p>
+      </div>
+      <div class="card">
+        <h3>LIGHTLY_REMEDIATED</h3>
+        <p>Some human touch detected.
+        Lists or alt text partially fixed, but the work is incomplete.</p>
+      </div>
+      <div class="card">
+        <h3>REMEDIATED</h3>
+        <p>Deliberate full remediation pass.
+        Proper list semantics, meaningful alt text, scoped table headers.
+        Likely meets PDF/UA in substance.</p>
+      </div>
+      <div class="card">
+        <h3>WELL_REMEDIATED</h3>
+        <p>All of the above plus advanced markers.
+        PDF/UA conformance declared, language at span level, complete StructParents.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="who">
+  <div class="container">
+    <h2>Who uses tagorigin</h2>
+    <div class="usecases">
+      <div>
+        <h3>Universities and disability services</h3>
+        <p>Evaluate accessibility vendors before signing.
+        Audit existing document libraries. Prepare for ADA Title II 2026.</p>
+      </div>
+      <div>
+        <h3>Educational publishers</h3>
+        <p>Pre-flight check on InDesign exports before sending to remediation vendors.
+        Self-assess template quality. Avoid paying for autotag passed off as remediation.</p>
+      </div>
+      <div>
+        <h3>Government agencies</h3>
+        <p>Section 508 compliance verification.
+        Procurement audits.
+        Public document inventory grading.</p>
+      </div>
+      <div>
+        <h3>Remediation teams</h3>
+        <p>Internal QA on your own output.
+        Vendor-to-vendor comparison on the same source files.
+        Catch regressions where a remediation tool degraded the original.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt-section">
+  <div class="container">
+    <h2>Privacy and data handling</h2>
+    <p>
+      Files uploaded to this site are processed in memory and the temporary
+      file is deleted immediately after classification. We do not store the
+      PDF, do not log its contents, and do not transmit it to any third
+      party (except optional vision API calls if you enable them via the
+      CLI; the public web form does not use vision).
+    </p>
+    <p>
+      For sensitive documents we recommend installing tagorigin locally and
+      running it via the command line. The tool is open source under the
+      MIT licence. See <a href="https://github.com/equitabledocs/tagorigin">github.com/equitabledocs/tagorigin</a>.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <p>
+      <strong>tagorigin</strong>. Part of the
+      <a href="https://equitabledocs.org">EquitableDocs</a> initiative.
+      Open source under the MIT licence.
+    </p>
+    <p>
+      <a href="https://github.com/equitabledocs/tagorigin">GitHub repository</a>
+      &nbsp;|&nbsp;
+      <a href="https://github.com/equitabledocs/tagorigin/blob/main/docs/SPEC.md">Specification</a>
+      &nbsp;|&nbsp;
+      <a href="mailto:deepa@equitabledocs.org">Contact</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>

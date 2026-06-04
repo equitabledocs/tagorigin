@@ -76,11 +76,26 @@ def _step_down(label: str) -> str:
 # ------------------------------------------------------------------
 # Main entry
 # ------------------------------------------------------------------
-def classify(inspector: PdfInspector, path: Path) -> ProvenanceResult:
+def classify(
+    inspector: PdfInspector,
+    path: Path,
+    vision_client: object | None = None,
+) -> ProvenanceResult:
+    """Run all signals and return a ProvenanceResult.
+
+    ``vision_client`` is an optional VisionClient implementation. When passed,
+    V1 and V2 vision-assisted signals run via the client. When omitted, the
+    vision signals return non-fired results.
+    """
     metadata_signals = [fn(inspector) for fn in METADATA_SIGNALS]
     structure_signals = [fn(inspector) for fn in STRUCTURE_SIGNALS]
     content_signals = [fn(inspector) for fn in CONTENT_SIGNALS]
     signals = metadata_signals + structure_signals + content_signals
+
+    if vision_client is not None:
+        from tagorigin.signals.vision import get_vision_signals
+        for fn in get_vision_signals(vision_client):
+            signals.append(fn(inspector))
 
     # Build lookup by id for override checks
     signal_map: dict[str, SignalResult] = {s.id: s for s in signals}

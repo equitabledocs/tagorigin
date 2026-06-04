@@ -16,16 +16,60 @@ Target users: accessibility-team intake reviewers, university procurement teams 
 
 ## Quick start
 
+### Command line
+
 ```
 pip install -e .
 tagorigin check sample.pdf
 tagorigin check sample.pdf --format json
-tagorigin check sample.pdf --verbose
+tagorigin check sample.pdf --format markdown --report report.md
+tagorigin check folder/ --recursive --csv summary.csv
+tagorigin test-corpus
 ```
+
+### Vision-assisted signals (optional)
+
+The V1 (visual reading order) and V2 (alt-text accuracy) signals use an
+Anthropic Claude vision model to cross-check structural signals against the
+rendered page. Costs apply per page.
+
+```
+pip install -e .[vision]
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+tagorigin check sample.pdf --vision
+tagorigin check sample.pdf --vision --vision-model claude-opus-4-7
+```
+
+### Web service
+
+A FastAPI backend with an HTML landing page is included. Run locally:
+
+```
+pip install -e .[web]
+uvicorn tagorigin.api:app --reload
+```
+
+Open `http://127.0.0.1:8000/` for the landing page, or POST a PDF to
+`/audit` (JSON response) or `/audit/html` (rendered HTML report).
 
 ## Status
 
-Phase 1 complete. The tool implements metadata signals M1 to M10, structure signals S1, S2, S5, S6, S7, S8, S8b, S10, S15, S16, S17, weighted-sum scoring with override rules, and text plus JSON output. See `docs/SPEC.md` for the full build specification and remaining Phase 2 to Phase 4 work.
+Phases 1, 2, 3, and 4 shipped. The tool implements:
+
+- Metadata signals M1 to M10 plus M5b
+- Structure signals S1 to S17 (S13, S14 reading-order are placeholders pending visual position analysis)
+- Content-stream signals C1, C2 (C3, C4 placeholders for deep content-stream parsing)
+- Vision-assisted signals V1, V2 (Anthropic Claude vision, behind `--vision` flag)
+- Weighted-sum scoring with three override rules
+- Text, JSON, and markdown output formats
+- Batch mode with CSV summary and per-file JSON
+- Bundled test corpus across UNTAGGED, AUTO_TAGGED, LIGHTLY_REMEDIATED, REMEDIATED buckets
+- FastAPI web service with a plain-HTML landing page
+
+Corpus tests pass at 100% across 18 files. WELL_REMEDIATED bucket awaits real
+samples from the PDF Association Matterhorn Protocol test suite.
+
+See `docs/SPEC.md` for the full build specification.
 
 ## How to contribute
 
