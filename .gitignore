@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual env
+.venv/
+venv/
+env/
+ENV/
+
+# Test artefacts
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# Local corpus PDFs (collected by Phase 2 setup but not committed)
+tagorigin/corpus/auto_tagged/*.pdf
+tagorigin/corpus/word_exports/*.pdf
+tagorigin/corpus/remediated/*.pdf
+tagorigin/corpus/well_remediated/*.pdf
+tagorigin/corpus/untagged/*.pdf
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local scratch
+.tmp-*
+*.local.*
+.env
+.env.local
