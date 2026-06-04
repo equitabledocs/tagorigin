@@ -110,7 +110,7 @@ Apply the following rules in order. **Override rules take priority over the scor
 **Step 1: Hard floor and ceiling overrides (evaluate before scoring).**
 
 - If S1 fires (no `/StructTreeRoot`) → `UNTAGGED`, confidence 1.0. Stop.
-- **Autotag-pattern override**: if S4 fires (lists tagged as paragraphs, ratio > 0.5) OR S6 fires (figures with generic or empty alt, > 30% of figures) → cap classification at `LIGHTLY_REMEDIATED` regardless of how strong the metadata signals are. Both can fire together; cap holds. This catches the "Acrobat opened the PDF and ran Autotag, leaving an Acrobat fingerprint in XMP but no human-quality tagging" case explicitly.
+- **Autotag-pattern override**: if (S4 fires OR S6 fires) AND (M3 or M5 fires, indicating an accessibility-capable tool touched the file) → cap classification at `LIGHTLY_REMEDIATED` regardless of how strong the remaining metadata signals are. Both structural autotag tells can fire together; cap holds. This catches the "Acrobat opened the PDF and ran Autotag, leaving an Acrobat fingerprint in XMP but no human-quality tagging" case explicitly. Pure authoring-tool exports with poor structure (e.g., InDesign with generic alt text) flow through to normal scoring because no remediation tool fingerprint is present.
 - **High-confidence remediation floor**: if S5 (figures have meaningful alt, average > 30 chars, no generic placeholders) AND S7 (every `/TH` has `/Scope`) AND S9 (artifact markings present) ALL fire → floor classification at `REMEDIATED`.
 - **PDF/UA declared sanity check**: if M6 (PDF/UA declared) fires BUT S4 or S6 also fires → drop confidence by 0.2 and reclassify down by one bucket. PDF/UA can be falsely declared; structural quality is the truth.
 

@@ -1,0 +1,20 @@
+{
+  "entries": [
+    {"path": "tagorigin/corpus/auto_tagged/803241_sdr_se1_closereading_chap10_cert_noanno.pdf", "expected": "AUTO_TAGGED", "reason": "Sadlier CH10 InDesign export"},
+    {"path": "tagorigin/corpus/auto_tagged/803241_sdr_se1_connection_chap10_cert_noanno.pdf", "expected": "AUTO_TAGGED", "reason": "Sadlier CH10 InDesign export"},
+    {"path": "tagorigin/corpus/auto_tagged/803241_sdr_se1_enrichment_chap10_cert_noanno.pdf", "expected": "AUTO_TAGGED", "reason": "Sadlier CH10 InDesign export"},
+    {"path": "tagorigin/corpus/auto_tagged/803241_sdr_se1_post_test_table_ch10_cert_noanno.pdf", "expected": "AUTO_TAGGED", "reason": "Sadlier CH10 InDesign export"},
+    {"path": "tagorigin/corpus/auto_tagged/803241_sdr_se1_intervention_suggest_Ch10_cert_noanno.pdf", "expected": "LIGHTLY_REMEDIATED", "reason": "Sadlier CH10 InDesign export with no figures and no RoleMap, but heading hierarchy and StructParents push score to +0.2"},
+    {"path": "tagorigin/corpus/remediated/803241_sdr_se1_closereading_chap11_cert_noanno.pdf", "expected": "LIGHTLY_REMEDIATED", "reason": "Sadlier CH11 PDFix remediation, outlines present but table scope missing, score=0.4"},
+    {"path": "tagorigin/corpus/remediated/803241_sdr_se1_connection_chap11_cert_noanno.pdf", "expected": "LIGHTLY_REMEDIATED", "reason": "Sadlier CH11 PDFix remediation, meaningful alt but table scope missing, score=1.4"},
+    {"path": "tagorigin/corpus/remediated/803241_sdr_se1_enrichment_chap11_cert_noanno.pdf", "expected": "LIGHTLY_REMEDIATED", "reason": "Sadlier CH11 PDFix remediation, meaningful alt but table scope missing, score=1.7"},
+    {"path": "tagorigin/corpus/remediated/803241_sdr_se1_home_chap_supp_chap11_cert_noanno.pdf", "expected": "LIGHTLY_REMEDIATED", "reason": "Sadlier CH11 PDFix remediation, meaningful alt but table scope missing, score=0.2"},
+    {"path": "tagorigin/corpus/remediated/803241_sdr_se1_skillsupdate_chap11_cert_noanno.pdf", "expected": "LIGHTLY_REMEDIATED", "reason": "Sadlier CH11 PDFix remediation, meaningful alt but table scope missing, score=1.7"},
+    {"path": "tagorigin/corpus/remediated/803241_sdr_se1_stream_connect_chap11_cert_noanno.pdf", "expected": "LIGHTLY_REMEDIATED", "reason": "Sadlier CH11 PDFix remediation, meaningful alt but table scope missing, score=1.7"},
+    {"path": "tagorigin/corpus/untagged/803241_sdr_se1_mah_post_chapter_let_10_cert_noanno.pdf", "expected": "UNTAGGED", "reason": "StructTreeRoot stripped"},
+    {"path": "tagorigin/corpus/untagged/803241_sdr_se1_prbslvprc_less10-10_cert_noanno.pdf", "expected": "UNTAGGED", "reason": "StructTreeRoot stripped"},
+    {"path": "tagorigin/corpus/untagged/803241_sdr_se1_prbslvprc_less10-11_cert_noanno.pdf", "expected": "UNTAGGED", "reason": "StructTreeRoot stripped"},
+    {"path": "tagorigin/corpus/untagged/803241_sdr_se1_prbslvprc_less10-12_cert_noanno.pdf", "expected": "UNTAGGED", "reason": "StructTreeRoot stripped"},
+    {"path": "tagorigin/corpus/untagged/803241_sdr_se1_prbslvprc_less10-1_cert_noanno.pdf", "expected": "UNTAGGED", "reason": "StructTreeRoot stripped"}
+  ]
+}

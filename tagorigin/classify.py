@@ -13,9 +13,12 @@ from tagorigin.models import ProvenanceResult, SignalResult
 if TYPE_CHECKING:
     from tagorigin.inspect import PdfInspector
 
+from tagorigin.signals.content import CONTENT_SIGNALS
 from tagorigin.signals.metadata import METADATA_SIGNALS
 from tagorigin.signals.structure import STRUCTURE_SIGNALS
 
+# ------------------------------------------------------------------
+# Config
 # ------------------------------------------------------------------
 # Config
 # ------------------------------------------------------------------
@@ -76,7 +79,8 @@ def _step_down(label: str) -> str:
 def classify(inspector: PdfInspector, path: Path) -> ProvenanceResult:
     metadata_signals = [fn(inspector) for fn in METADATA_SIGNALS]
     structure_signals = [fn(inspector) for fn in STRUCTURE_SIGNALS]
-    signals = metadata_signals + structure_signals
+    content_signals = [fn(inspector) for fn in CONTENT_SIGNALS]
+    signals = metadata_signals + structure_signals + content_signals
 
     # Build lookup by id for override checks
     signal_map: dict[str, SignalResult] = {s.id: s for s in signals}
@@ -104,6 +108,7 @@ def classify(inspector: PdfInspector, path: Path) -> ProvenanceResult:
     s5 = signal_map.get("S5_figure_alt_meaningful")
     s6 = signal_map.get("S6_figure_alt_generic")
     s7 = signal_map.get("S7_table_th_scope")
+    s9 = signal_map.get("S9_artifact_markings")
     m6 = signal_map.get("M6_pdf_ua_declared")
 
     override_applied = False
@@ -111,9 +116,6 @@ def classify(inspector: PdfInspector, path: Path) -> ProvenanceResult:
     confidence = 0.5
     raw_score = 0.0
     summary = ""
-
-    m3 = signal_map.get("M3_xmp_history_accessibility_tool")
-    m5 = signal_map.get("M5_producer_remediation_tool")
 
     m3 = signal_map.get("M3_xmp_history_accessibility_tool")
     m5 = signal_map.get("M5_producer_remediation_tool")
@@ -139,16 +141,24 @@ def classify(inspector: PdfInspector, path: Path) -> ProvenanceResult:
             "Classification capped at LIGHTLY_REMEDIATED."
         )
 
-    # High-confidence remediation floor: if S5 AND S7 fire -> floor at REMEDIATED
-    # Phase 1 note: S9 (artifact markings) is Phase 2; we omit it here.
-    # When Phase 2 lands, add S9 to the condition.
-    elif s5 and s5.fired and s7 and s7.fired:
+    # High-confidence remediation floor: if S5 AND S7 AND S9 fire -> floor at REMEDIATED
+    elif s5 and s5.fired and s7 and s7.fired and s9 and s9.fired:
         label = "REMEDIATED"
         confidence = 0.75
         override_applied = True
         summary = (
-            "Meaningful figure alt text and complete table header scope detected. "
-            "Floor classification is REMEDIATED."
+            "Meaningful figure alt text, complete table header scope, "
+            "and artifact markings detected. Floor classification is REMEDIATED."
+        )
+
+    # High-confidence remediation floor: if S5 AND S7 AND S9 fire -> floor at REMEDIATED
+    elif s5 and s5.fired and s7 and s7.fired and s9 and s9.fired:
+        label = "REMEDIATED"
+        confidence = 0.75
+        override_applied = True
+        summary = (
+            "Meaningful figure alt text, complete table header scope, "
+            "and artifact markings detected. Floor classification is REMEDIATED."
         )
 
     if override_applied:

@@ -38,7 +38,13 @@ PUBLISHER_PDF = Path(
 PDFIX_PDF = Path(
     r"C:\Users\deepa\Projects\pdfix-remediation\clients\slizvon-reteach\Sadlier_G1_B3\pac-final\803241_sdr_se1_closereading_chap11_cert_noanno.pdf"
 )
-UNTAGGED_PDF = Path(r"C:\Users\deepa\AppData\Local\Temp\opencode\untagged_test.pdf")
+UNTAGGED_PDF = (
+    Path(__file__).resolve().parent.parent
+    / "tagorigin"
+    / "corpus"
+    / "untagged"
+    / "803241_sdr_se1_prbslvprc_less10-1_cert_noanno.pdf"
+)
 
 
 @pytest.fixture

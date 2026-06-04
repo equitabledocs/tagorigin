@@ -162,14 +162,9 @@ class PdfInspector:
                 except ValueError:
                     return None
         return None
-        for part in self.xmp_xml.iter("{http://www.aiim.org/pdfua/ns/id/}part"):
-            if part.text:
-                try:
-                    return int(part.text)
-                except ValueError:
-                    return None
-        return None
 
+    # ------------------------------------------------------------------
+    # Structure-tree accessors (for S-signals)
     # ------------------------------------------------------------------
     # Structure-tree accessors (for S-signals)
     # ------------------------------------------------------------------
@@ -419,6 +414,201 @@ class PdfInspector:
             next_ref = self._get(child, "/Next")
             child = next_ref
         return max_depth
+
+    # ------------------------------------------------------------------
+    # Phase 2: paragraph text extraction (S3, S4)
+    # ------------------------------------------------------------------
+    def paragraph_texts(self) -> list[str]:
+        """Return text content of every /P element in the structure tree."""
+        result: list[str] = []
+        root = self.struct_tree_root()
+        if root is None:
+            return result
+        self._collect_paragraph_texts(root, result)
+        return result
+
+    def _collect_paragraph_texts(self, node: Any, result: list[str]) -> None:
+        children = self._get(node, "/K")
+        if children is None:
+            return
+        if isinstance(children, pikepdf.Array):
+            for child in children:
+                self._visit_paragraph_node(child, result)
+        else:
+            self._visit_paragraph_node(children, result)
+
+    def _visit_paragraph_node(self, node: Any, result: list[str]) -> None:
+        if isinstance(node, pikepdf.Dictionary):
+            tag = self._get(node, "/S")
+            if tag is not None and self._text(tag) == "/P":
+                txt = self._node_text(node)
+                if txt:
+                    result.append(txt)
+            self._collect_paragraph_texts(node, result)
+        elif isinstance(node, pikepdf.Object):
+            try:
+                resolved = self.pdf.get_object(node.objgen)
+                if isinstance(resolved, pikepdf.Dictionary):
+                    tag = self._get(resolved, "/S")
+                    if tag is not None and self._text(tag) == "/P":
+                        txt = self._node_text(resolved)
+                        if txt:
+                            result.append(txt)
+                    self._collect_paragraph_texts(resolved, result)
+            except Exception:
+                pass
+
+    def _node_text(self, node: pikepdf.Dictionary) -> str:
+        """Best-effort text extraction from a structure node, using /ActualText."""
+        parts: list[str] = []
+        children = self._get(node, "/K")
+        if children is None:
+            return ""
+        if isinstance(children, pikepdf.Array):
+            child_list = list(children)
+        else:
+            child_list = [children]
+        for child in child_list:
+            target = child
+            if isinstance(target, pikepdf.Object):
+                try:
+                    target = self.pdf.get_object(target.objgen)
+                except Exception:
+                    continue
+            if isinstance(target, pikepdf.Dictionary):
+                actual = self._get(target, "/ActualText")
+                if actual is not None:
+                    parts.append(self._text(actual))
+                else:
+                    parts.append(self._node_text(target))
+        return "".join(parts)
+
+    # ------------------------------------------------------------------
+    # Phase 2: artifact node detection (S9)
+    # ------------------------------------------------------------------
+    def artifact_nodes(self) -> list[dict[str, Any]]:
+        """Return list of dicts representing /Artifact markings in the tree."""
+        result: list[dict[str, Any]] = []
+        root = self.struct_tree_root()
+        if root is None:
+            return result
+        self._collect_artifact_nodes(root, result)
+        return result
+
+    def _collect_artifact_nodes(self, node: Any, result: list[dict[str, Any]]) -> None:
+        children = self._get(node, "/K")
+        if children is None:
+            return
+        if isinstance(children, pikepdf.Array):
+            for child in children:
+                self._visit_artifact_node(child, result)
+        else:
+            self._visit_artifact_node(children, result)
+
+    def _visit_artifact_node(self, node: Any, result: list[dict[str, Any]]) -> None:
+        if isinstance(node, pikepdf.Dictionary):
+            self._record_if_artifact(node, result)
+            self._collect_artifact_nodes(node, result)
+        elif isinstance(node, pikepdf.Object):
+            try:
+                resolved = self.pdf.get_object(node.objgen)
+                if isinstance(resolved, pikepdf.Dictionary):
+                    self._record_if_artifact(resolved, result)
+                    self._collect_artifact_nodes(resolved, result)
+            except Exception:
+                pass
+
+    def _record_if_artifact(self, node: pikepdf.Dictionary, result: list[dict[str, Any]]) -> None:
+        tag = self._get(node, "/S")
+        if tag is not None and self._text(tag) == "/Artifact":
+            result.append({"source": "tag", "subtype": None})
+            return
+        typ = self._get(node, "/Type")
+        if typ is not None and self._text(typ) == "/Artifact":
+            subtype = self._get(node, "/Subtype")
+            result.append({"source": "type", "subtype": self._text(subtype) if subtype else None})
+
+    # ------------------------------------------------------------------
+    # Phase 2: span-level Lang attribute count (S11)
+    # ------------------------------------------------------------------
+    def span_lang_count(self) -> int:
+        """Count /Span structure elements that carry a /Lang attribute."""
+        root = self.struct_tree_root()
+        if root is None:
+            return 0
+        return self._count_span_lang(root, 0)
+
+    def _count_span_lang(self, node: Any, count: int) -> int:
+        children = self._get(node, "/K")
+        if children is None:
+            return count
+        if isinstance(children, pikepdf.Array):
+            for child in children:
+                count = self._visit_span_lang_node(child, count)
+        else:
+            count = self._visit_span_lang_node(children, count)
+        return count
+
+    def _visit_span_lang_node(self, node: Any, count: int) -> int:
+        target = node
+        if isinstance(target, pikepdf.Object):
+            try:
+                target = self.pdf.get_object(target.objgen)
+            except Exception:
+                return count
+        if isinstance(target, pikepdf.Dictionary):
+            tag = self._get(target, "/S")
+            is_span = tag is not None and self._text(tag) == "/Span"
+            if is_span and self._get(target, "/Lang") is not None:
+                count += 1
+            count = self._count_span_lang(target, count)
+        return count
+
+    # ------------------------------------------------------------------
+    # Phase 2: StructParents completeness check (S12)
+    # ------------------------------------------------------------------
+    def struct_parents_ok(self) -> bool:
+        """Return True when every page with content has /StructParents AND the
+        StructTreeRoot has a well-formed /ParentTree.
+        """
+        struct_tree = self.struct_tree_root()
+        if struct_tree is None:
+            return False
+        if self._get(struct_tree, "/ParentTree") is None:
+            return False
+        pages = self._get(self.root, "/Pages")
+        if pages is None:
+            return False
+        return self._check_pages_struct_parents(pages)
+
+    def _check_pages_struct_parents(self, node: Any) -> bool:
+        target = node
+        if isinstance(target, pikepdf.Object):
+            try:
+                target = self.pdf.get_object(target.objgen)
+            except Exception:
+                return False
+        if not isinstance(target, pikepdf.Dictionary):
+            return True
+        node_type = self._text(target.get("/Type")) if target.get("/Type") is not None else ""
+        if node_type == "/Page":
+            has_content = (
+                self._get(target, "/Contents") is not None
+                or self._get(target, "/Resources") is not None
+            )
+            if has_content and self._get(target, "/StructParents") is None:
+                return False
+            return True
+        if node_type == "/Pages":
+            kids = self._get(target, "/Kids")
+            if kids is None:
+                return True
+            if isinstance(kids, pikepdf.Array):
+                for kid in kids:
+                    if not self._check_pages_struct_parents(kid):
+                        return False
+            return True
+        return True
 
     # ------------------------------------------------------------------
     # Cleanup

@@ -1,9 +1,13 @@
-"""tagorigin structure signals (S1, S2, S5, S6, S7, S8, S8b, S10, S15, S16, S17).
+"""tagorigin structure signals.
+
+Implements S1, S2, S3, S4, S5, S6, S7, S8, S8b, S9, S10, S11, S12, S13, S14,
+S15, S16, S17 per docs/SPEC.md section 2.2.
 
 Each function takes a PdfInspector and returns a SignalResult.
 """
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -67,6 +71,67 @@ def s2_heading_hierarchy(inspector: PdfInspector) -> SignalResult:
         0.3,
         fired,
         evidence,
+    )
+
+
+# ------------------------------------------------------------------
+# S3: Lists use semantic list structure
+# ------------------------------------------------------------------
+LIST_PATTERN = re.compile(r"^\d+\.\s")
+
+
+def s3_semantic_lists(inspector: PdfInspector) -> SignalResult:
+    tally = inspector.tag_tally()
+    list_tags = (
+        tally.get("/L", 0)
+        + tally.get("/LI", 0)
+        + tally.get("/Lbl", 0)
+        + tally.get("/LBody", 0)
+    )
+    para_texts = inspector.paragraph_texts()
+    numbered_paras = sum(1 for t in para_texts if LIST_PATTERN.match(t.strip()))
+    if numbered_paras == 0:
+        return _make(
+            "S3_semantic_lists",
+            "Lists use semantic /L /LI /Lbl /LBody structure",
+            1.0,
+            False,
+            "No numbered paragraphs detected",
+        )
+    ratio = list_tags / numbered_paras if numbered_paras > 0 else 0.0
+    fired = ratio > 0.7
+    return _make(
+        "S3_semantic_lists",
+        "Lists use semantic /L /LI /Lbl /LBody structure",
+        1.0,
+        fired,
+        f"list_tags={list_tags}, numbered_paras={numbered_paras}, ratio={ratio:.2f}",
+    )
+
+
+# ------------------------------------------------------------------
+# S4: Lists tagged as paragraphs (anti-signal)
+# ------------------------------------------------------------------
+def s4_lists_as_paragraphs(inspector: PdfInspector) -> SignalResult:
+    para_texts = inspector.paragraph_texts()
+    numbered_paras = sum(1 for t in para_texts if LIST_PATTERN.match(t.strip()))
+    total_paras = len(para_texts)
+    if total_paras == 0:
+        return _make(
+            "S4_lists_as_paragraphs",
+            "Lists are tagged as /P instead of /L",
+            -1.5,
+            False,
+            "No paragraphs found",
+        )
+    ratio = numbered_paras / total_paras
+    fired = ratio > 0.5
+    return _make(
+        "S4_lists_as_paragraphs",
+        "Lists are tagged as /P instead of /L",
+        -1.5,
+        fired,
+        f"numbered_paras={numbered_paras}, total_paras={total_paras}, ratio={ratio:.2f}",
     )
 
 
@@ -219,6 +284,21 @@ def s8b_all_th_missing_scope(inspector: PdfInspector) -> SignalResult:
 
 
 # ------------------------------------------------------------------
+# S9: Artifact markings present
+# ------------------------------------------------------------------
+def s9_artifact_markings(inspector: PdfInspector) -> SignalResult:
+    artifacts = inspector.artifact_nodes()
+    fired = len(artifacts) > 0
+    return _make(
+        "S9_artifact_markings",
+        "Artifact markings present in structure tree",
+        0.5,
+        fired,
+        f"{len(artifacts)} artifact node(s)" if fired else "No artifact markings",
+    )
+
+
+# ------------------------------------------------------------------
 # S10: ActualText anti-patterns
 # ------------------------------------------------------------------
 def s10_actual_text_anti_patterns(inspector: PdfInspector) -> SignalResult:
@@ -235,6 +315,67 @@ def s10_actual_text_anti_patterns(inspector: PdfInspector) -> SignalResult:
         raw_weight,
         fired,
         f"{count} issue(s) found",
+    )
+
+
+# ------------------------------------------------------------------
+# S11: Lang attributes at span level
+# ------------------------------------------------------------------
+def s11_span_lang(inspector: PdfInspector) -> SignalResult:
+    count = inspector.span_lang_count()
+    fired = count > 0
+    return _make(
+        "S11_span_lang",
+        "/Span elements with /Lang attribute present",
+        0.5,
+        fired,
+        f"{count} /Span with /Lang" if fired else "No span-level Lang",
+    )
+
+
+# ------------------------------------------------------------------
+# S12: StructParents mapping completeness
+# ------------------------------------------------------------------
+def s12_struct_parents_complete(inspector: PdfInspector) -> SignalResult:
+    ok = inspector.struct_parents_ok()
+    return _make(
+        "S12_struct_parents_complete",
+        "Every page has /StructParents and /ParentTree is well-formed",
+        0.5,
+        ok,
+        "StructParents mapping complete" if ok else "StructParents mapping incomplete or missing",
+    )
+
+
+# ------------------------------------------------------------------
+# S13: Reading order tag-tree-first (simplified)
+# ------------------------------------------------------------------
+def s13_reading_order_tag_tree(inspector: PdfInspector) -> SignalResult:
+    # Full implementation requires MCID coordinate extraction and
+    # comparison of tag-tree order to visual order. This is a
+    # placeholder for Phase 2; proper implementation needs content
+    # stream parsing for text positions.
+    return _make(
+        "S13_reading_order_tag_tree",
+        "Tag-tree order matches visual reading order (simplified check)",
+        1.0,
+        False,
+        "Full reading-order comparison not implemented in Phase 2",
+    )
+
+
+# ------------------------------------------------------------------
+# S14: Reading order text-frame-first (simplified)
+# ------------------------------------------------------------------
+def s14_reading_order_text_frame(inspector: PdfInspector) -> SignalResult:
+    # Full implementation requires detecting InDesign text-frame
+    # insertion order vs visual order. Placeholder for Phase 2.
+    return _make(
+        "S14_reading_order_text_frame",
+        "Tag-tree order follows text-frame insertion order (InDesign tell)",
+        -1.0,
+        False,
+        "Full reading-order comparison not implemented in Phase 2",
     )
 
 
@@ -300,12 +441,19 @@ def s17_outlines_present(inspector: PdfInspector) -> SignalResult:
 STRUCTURE_SIGNALS = [
     s1_no_struct_tree,
     s2_heading_hierarchy,
+    s3_semantic_lists,
+    s4_lists_as_paragraphs,
     s5_figure_alt_meaningful,
     s6_figure_alt_generic,
     s7_table_th_scope,
     s8_table_th_missing_scope,
     s8b_all_th_missing_scope,
+    s9_artifact_markings,
     s10_actual_text_anti_patterns,
+    s11_span_lang,
+    s12_struct_parents_complete,
+    s13_reading_order_tag_tree,
+    s14_reading_order_text_frame,
     s15_rolemap_present,
     s16_table_sectioning_and_scope,
     s17_outlines_present,
