@@ -20,12 +20,12 @@ Target users: accessibility-team intake reviewers, university procurement teams 
 pip install -e .
 tagorigin check sample.pdf
 tagorigin check sample.pdf --format json
-tagorigin check folder/ --recursive --csv summary.csv
+tagorigin check sample.pdf --verbose
 ```
 
 ## Status
 
-Pre-MVP. Folder skeleton in place. Implementation work is described in `docs/SPEC.md`.
+Phase 1 complete. The tool implements metadata signals M1 to M10, structure signals S1, S2, S5, S6, S7, S8, S8b, S10, S15, S16, S17, weighted-sum scoring with override rules, and text plus JSON output. See `docs/SPEC.md` for the full build specification and remaining Phase 2 to Phase 4 work.
 
 ## How to contribute
 

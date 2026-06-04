@@ -1,0 +1,433 @@
+"""tagorigin inspect.py: pikepdf wrapper for metadata and structure extraction.
+
+Opens a PDF with pikepdf and extracts the data needed by the signal modules.
+No scoring logic here: just safe extraction and normalisation.
+"""
+from __future__ import annotations
+
+import hashlib
+from pathlib import Path
+from typing import Any
+
+import pikepdf
+from lxml import etree
+
+
+class PdfInspector:
+    """Wraps an open pikepdf.Pdf and exposes the raw structures signals need."""
+
+    def __init__(self, pdf: pikepdf.Pdf, path: Path | None = None) -> None:
+        self.pdf = pdf
+        self.path = path
+        self.root = pdf.Root
+        self.info = pdf.docinfo if hasattr(pdf, "docinfo") else {}
+        self.xmp_xml: etree._Element | None = self._load_xmp()
+
+        # Lazy caches
+        self._tag_tally: dict[str, int] | None = None
+        self._figures_with_alt: list[dict[str, Any]] | None = None
+        self._tables_with_th: list[dict[str, Any]] | None = None
+        self._actual_text_issues: list[dict[str, Any]] | None = None
+
+    # ------------------------------------------------------------------
+    # Factory
+    # ------------------------------------------------------------------
+    @classmethod
+    def open(cls, path: Path) -> PdfInspector:
+        pdf = pikepdf.open(str(path))
+        return cls(pdf, path)
+
+    # ------------------------------------------------------------------
+    # Basic file metadata
+    # ------------------------------------------------------------------
+    def file_size_bytes(self) -> int:
+        if self.path:
+            return self.path.stat().st_size
+        return 0
+
+    def file_md5(self) -> str:
+        if not self.path:
+            return ""
+        h = hashlib.md5()  # noqa: S324
+        h.update(self.path.read_bytes())
+        return h.hexdigest()
+
+    # ------------------------------------------------------------------
+    # Low-level helpers
+    # ------------------------------------------------------------------
+    def _get(self, obj: Any, key: str) -> Any:
+        if obj is None:
+            return None
+        try:
+            return obj.get(key)
+        except (AttributeError, KeyError, TypeError):
+            return None
+
+    def _bool(self, obj: Any, key: str) -> bool | None:
+        val = self._get(obj, key)
+        if val is None:
+            return None
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, (int, float)):
+            return bool(val)
+        return None
+
+    def _text(self, obj: Any) -> str:
+        if obj is None:
+            return ""
+        if isinstance(obj, pikepdf.String):
+            return str(obj)
+        if isinstance(obj, bytes):
+            return obj.decode("utf-8", errors="replace")
+        return str(obj)
+
+    # ------------------------------------------------------------------
+    # XMP loading
+    # ------------------------------------------------------------------
+    def _load_xmp(self) -> etree._Element | None:
+        try:
+            raw = self.pdf.xmp_metadata
+        except Exception:
+            raw = None
+        if not raw:
+            return None
+        try:
+            return etree.fromstring(raw)
+        except Exception:
+            return None
+
+    # ------------------------------------------------------------------
+    # Metadata accessors (for M-signals)
+    # ------------------------------------------------------------------
+    def producer(self) -> str:
+        val = self._get(self.info, "/Producer")
+        return self._text(val)
+
+    def creator(self) -> str:
+        val = self._get(self.info, "/Creator")
+        return self._text(val)
+
+    def title(self) -> str:
+        val = self._get(self.info, "/Title")
+        return self._text(val)
+
+    def document_lang(self) -> str:
+        val = self._get(self.root, "/Lang")
+        return self._text(val)
+
+    def mark_info_marked(self) -> bool | None:
+        mark_info = self._get(self.root, "/MarkInfo")
+        return self._bool(mark_info, "/Marked")
+
+    def is_linearised(self) -> bool:
+        try:
+            obj1 = self.pdf.get_object(1)
+        except Exception:
+            return False
+        return obj1.get("/Linearized") is not None
+
+    def xmp_history_events(self) -> list[dict[str, str]]:
+        """Return a list of dicts with keys: action, software_agent."""
+        if self.xmp_xml is None:
+            return []
+        ns = {
+            "xmpMM": "http://ns.adobe.com/xap/1.0/mm/",
+            "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+            "stEvt": "http://ns.adobe.com/xap/1.0/sType/ResourceEvent#",
+        }
+        events: list[dict[str, str]] = []
+        # xmpMM:History / rdf:Seq / rdf:li
+        for hist in self.xmp_xml.iter("{http://ns.adobe.com/xap/1.0/mm/}History"):
+            for seq in hist.iter("{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Seq"):
+                for li in seq.iter("{http://www.w3.org/1999/02/22-rdf-syntax-ns#}li"):
+                    evt: dict[str, str] = {}
+                    action = li.find("stEvt:action", ns)
+                    if action is not None and action.text:
+                        evt["action"] = action.text
+                    agent = li.find("stEvt:softwareAgent", ns)
+                    if agent is not None and agent.text:
+                        evt["software_agent"] = agent.text
+                    if evt:
+                        events.append(evt)
+        return events
+
+    def pdf_ua_part(self) -> int | None:
+        if self.xmp_xml is None:
+            return None
+        for part in self.xmp_xml.iter("{http://www.aiim.org/pdfua/ns/id/}part"):
+            if part.text:
+                try:
+                    return int(part.text)
+                except ValueError:
+                    return None
+        return None
+        for part in self.xmp_xml.iter("{http://www.aiim.org/pdfua/ns/id/}part"):
+            if part.text:
+                try:
+                    return int(part.text)
+                except ValueError:
+                    return None
+        return None
+
+    # ------------------------------------------------------------------
+    # Structure-tree accessors (for S-signals)
+    # ------------------------------------------------------------------
+    def struct_tree_root(self) -> pikepdf.Dictionary | None:
+        return self._get(self.root, "/StructTreeRoot")
+
+    def has_struct_tree(self) -> bool:
+        root = self.struct_tree_root()
+        if root is None:
+            return False
+        # Empty means no /K or /K is an empty array
+        k = self._get(root, "/K")
+        if k is None:
+            return False
+        if isinstance(k, pikepdf.Array) and len(k) == 0:
+            return False
+        return True
+
+    def tag_tally(self) -> dict[str, int]:
+        if self._tag_tally is not None:
+            return self._tag_tally
+        tally: dict[str, int] = {}
+        root = self.struct_tree_root()
+        if root is None:
+            self._tag_tally = tally
+            return tally
+        self._walk_struct_tree(root, tally)
+        self._tag_tally = tally
+        return tally
+
+    def _walk_struct_tree(self, node: Any, tally: dict[str, int]) -> None:
+        children = self._get(node, "/K")
+        if children is None:
+            return
+        if isinstance(children, pikepdf.Array):
+            for child in children:
+                self._visit_node(child, tally)
+        else:
+            self._visit_node(children, tally)
+
+    def _visit_node(self, node: Any, tally: dict[str, int]) -> None:
+        if isinstance(node, pikepdf.Dictionary):
+            tag = self._get(node, "/S")
+            if tag is not None:
+                tag_name = self._text(tag)
+                tally[tag_name] = tally.get(tag_name, 0) + 1
+            self._walk_struct_tree(node, tally)
+        elif isinstance(node, pikepdf.Object):
+            # Indirect reference: follow it
+            try:
+                resolved = self.pdf.get_object(node.objgen)
+                if isinstance(resolved, pikepdf.Dictionary):
+                    tag = self._get(resolved, "/S")
+                    if tag is not None:
+                        tag_name = self._text(tag)
+                        tally[tag_name] = tally.get(tag_name, 0) + 1
+                    self._walk_struct_tree(resolved, tally)
+            except Exception:
+                pass
+
+    def figure_alt_data(self) -> list[dict[str, Any]]:
+        """Return list of dicts with keys: alt (str), has_alt (bool)."""
+        if self._figures_with_alt is not None:
+            return self._figures_with_alt
+        result: list[dict[str, Any]] = []
+        root = self.struct_tree_root()
+        if root is None:
+            self._figures_with_alt = result
+            return result
+        self._collect_figure_alt(root, result)
+        self._figures_with_alt = result
+        return result
+
+    def _collect_figure_alt(self, node: Any, result: list[dict[str, Any]]) -> None:
+        children = self._get(node, "/K")
+        if children is None:
+            return
+        if isinstance(children, pikepdf.Array):
+            for child in children:
+                self._visit_figure_node(child, result)
+        else:
+            self._visit_figure_node(children, result)
+
+    def _visit_figure_node(self, node: Any, result: list[dict[str, Any]]) -> None:
+        if isinstance(node, pikepdf.Dictionary):
+            tag = self._get(node, "/S")
+            if tag is not None and self._text(tag) == "/Figure":
+                alt = self._get(node, "/Alt")
+                alt_text = self._text(alt)
+                result.append({"alt": alt_text, "has_alt": alt is not None})
+            self._collect_figure_alt(node, result)
+        elif isinstance(node, pikepdf.Object):
+            try:
+                resolved = self.pdf.get_object(node.objgen)
+                if isinstance(resolved, pikepdf.Dictionary):
+                    tag = self._get(resolved, "/S")
+                    if tag is not None and self._text(tag) == "/Figure":
+                        alt = self._get(resolved, "/Alt")
+                        alt_text = self._text(alt)
+                        result.append({"alt": alt_text, "has_alt": alt is not None})
+                    self._collect_figure_alt(resolved, result)
+            except Exception:
+                pass
+
+    def table_th_data(self) -> list[dict[str, Any]]:
+        """Return list of dicts with keys: scope (str or None)."""
+        if self._tables_with_th is not None:
+            return self._tables_with_th
+        result: list[dict[str, Any]] = []
+        root = self.struct_tree_root()
+        if root is None:
+            self._tables_with_th = result
+            return result
+        self._collect_th_data(root, result)
+        self._tables_with_th = result
+        return result
+
+    def _collect_th_data(self, node: Any, result: list[dict[str, Any]]) -> None:
+        children = self._get(node, "/K")
+        if children is None:
+            return
+        if isinstance(children, pikepdf.Array):
+            for child in children:
+                self._visit_th_node(child, result)
+        else:
+            self._visit_th_node(children, result)
+
+    def _visit_th_node(self, node: Any, result: list[dict[str, Any]]) -> None:
+        if isinstance(node, pikepdf.Dictionary):
+            tag = self._get(node, "/S")
+            if tag is not None and self._text(tag) == "/TH":
+                scope = self._get(node, "/Scope")
+                result.append({"scope": self._text(scope) if scope else None})
+            self._collect_th_data(node, result)
+        elif isinstance(node, pikepdf.Object):
+            try:
+                resolved = self.pdf.get_object(node.objgen)
+                if isinstance(resolved, pikepdf.Dictionary):
+                    tag = self._get(resolved, "/S")
+                    if tag is not None and self._text(tag) == "/TH":
+                        scope = self._get(resolved, "/Scope")
+                        result.append({"scope": self._text(scope) if scope else None})
+                    self._collect_th_data(resolved, result)
+            except Exception:
+                pass
+
+    def actual_text_issues(self) -> list[dict[str, Any]]:
+        """Return list of dicts with keys: value (str), context (str)."""
+        if self._actual_text_issues is not None:
+            return self._actual_text_issues
+        result: list[dict[str, Any]] = []
+        root = self.struct_tree_root()
+        if root is None:
+            self._actual_text_issues = result
+            return result
+        self._collect_actual_text_issues(root, result)
+        self._actual_text_issues = result
+        return result
+
+    def _collect_actual_text_issues(self, node: Any, result: list[dict[str, Any]]) -> None:
+        children = self._get(node, "/K")
+        if children is None:
+            return
+        if isinstance(children, pikepdf.Array):
+            for child in children:
+                self._visit_actual_text_node(child, result)
+        else:
+            self._visit_actual_text_node(children, result)
+
+    def _visit_actual_text_node(self, node: Any, result: list[dict[str, Any]]) -> None:
+        BAD = {"blank", "space", ""}
+        if isinstance(node, pikepdf.Dictionary):
+            actual = self._get(node, "/ActualText")
+            if actual is not None:
+                val = self._text(actual)
+                if val in BAD:
+                    result.append({"value": val, "context": "struct_node"})
+            self._collect_actual_text_issues(node, result)
+        elif isinstance(node, pikepdf.Object):
+            try:
+                resolved = self.pdf.get_object(node.objgen)
+                if isinstance(resolved, pikepdf.Dictionary):
+                    actual = self._get(resolved, "/ActualText")
+                    if actual is not None:
+                        val = self._text(actual)
+                        if val in BAD:
+                            result.append({"value": val, "context": "struct_node"})
+                    self._collect_actual_text_issues(resolved, result)
+            except Exception:
+                pass
+
+    def rolemap_entries(self) -> dict[str, str]:
+        """Return dict of RoleMap entries, e.g. {'/StyleSpan': '/Span'}."""
+        root = self.struct_tree_root()
+        if root is None:
+            return {}
+        rolemap = self._get(root, "/RoleMap")
+        if rolemap is None:
+            return {}
+        entries: dict[str, str] = {}
+        if isinstance(rolemap, pikepdf.Dictionary):
+            for key, val in rolemap.items():
+                entries[self._text(key)] = self._text(val)
+        return entries
+
+    def has_thead(self) -> bool:
+        """True if any /THead tag appears in the structure tree."""
+        return self.tag_tally().get("/THead", 0) > 0
+
+    def outlines_depth(self) -> int:
+        """Return max depth of the /Outlines tree, 0 if absent or empty."""
+        outlines = self._get(self.root, "/Outlines")
+        if outlines is None:
+            return 0
+        try:
+            return self._outline_depth(outlines, 1)
+        except Exception:
+            return 0
+
+    def _outline_depth(self, node: Any, current: int) -> int:
+        if not isinstance(node, pikepdf.Dictionary):
+            return current
+        first = self._get(node, "/First")
+        if first is None:
+            return current
+        # Follow /First sibling chain
+        max_depth = current + 1
+        child = first
+        while child is not None:
+            if isinstance(child, pikepdf.Object):
+                try:
+                    child = self.pdf.get_object(child.objgen)
+                except Exception:
+                    break
+            if not isinstance(child, pikepdf.Dictionary):
+                break
+            child_first = self._get(child, "/First")
+            if child_first is not None:
+                if isinstance(child_first, pikepdf.Object):
+                    try:
+                        child_first = self.pdf.get_object(child_first.objgen)
+                    except Exception:
+                        child_first = None
+                if child_first is not None:
+                    d = self._outline_depth(child_first, current + 1)
+                    max_depth = max(max_depth, d)
+            next_ref = self._get(child, "/Next")
+            child = next_ref
+        return max_depth
+
+    # ------------------------------------------------------------------
+    # Cleanup
+    # ------------------------------------------------------------------
+    def close(self) -> None:
+        self.pdf.close()
+
+    def __enter__(self) -> PdfInspector:
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        self.close()
