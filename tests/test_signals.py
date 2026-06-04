@@ -68,9 +68,12 @@ def untagged_inspector():
 # ------------------------------------------------------------------
 # Metadata signal tests
 # ------------------------------------------------------------------
-def test_m1_publisher_no_xmp_history(publisher_inspector):
+def test_m1_publisher_single_xmp_event(publisher_inspector):
+    # Sadlier publisher CH10 has exactly one XMP history event (InDesign export
+    # converted from x-indesign to pdf). M1 fires as expected for an untouched
+    # publisher source.
     result = m1_xmp_history_single_event(publisher_inspector)
-    assert not result.fired
+    assert result.fired
 
 
 def test_m4_publisher_is_authoring_tool(publisher_inspector):
@@ -96,9 +99,13 @@ def test_m5_pdfix_not_remediation_tool(pdfix_inspector):
     assert not result.fired
 
 
-def test_m6_publisher_no_pdf_ua(publisher_inspector):
+def test_m6_publisher_declares_pdf_ua(publisher_inspector):
+    # The Sadlier publisher CH10 file DOES declare pdfuaid:part=1 in XMP,
+    # despite being unremediated. This is a real-world calibration point: PDF/UA
+    # declarations are commonly written by authoring tools without actually
+    # meeting the standard. The M6+S6 dampening rule exists for this case.
     result = m6_pdf_ua_declared(publisher_inspector)
-    assert not result.fired
+    assert result.fired
 
 
 def test_m9_publisher_marked(publisher_inspector):

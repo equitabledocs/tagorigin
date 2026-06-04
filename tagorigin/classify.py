@@ -151,19 +151,12 @@ def classify(inspector: PdfInspector, path: Path) -> ProvenanceResult:
             "and artifact markings detected. Floor classification is REMEDIATED."
         )
 
-    # High-confidence remediation floor: if S5 AND S7 AND S9 fire -> floor at REMEDIATED
-    elif s5 and s5.fired and s7 and s7.fired and s9 and s9.fired:
-        label = "REMEDIATED"
-        confidence = 0.75
-        override_applied = True
-        summary = (
-            "Meaningful figure alt text, complete table header scope, "
-            "and artifact markings detected. Floor classification is REMEDIATED."
-        )
-
     if override_applied:
-        # PDF/UA sanity check: if M6 fires but S6 also fires, drop one bucket
-        if m6 and m6.fired and s6 and s6.fired:
+        # PDF/UA sanity check: only apply when we landed on the remediation floor.
+        # The autotag-pattern override already accounts for S6 firing, so applying
+        # M6+S6 dampening on top would double-demote.
+        is_remediation_floor = label in ("REMEDIATED", "WELL_REMEDIATED")
+        if is_remediation_floor and m6 and m6.fired and s6 and s6.fired:
             label = _step_down(label)
             confidence = max(0.0, confidence - 0.2)
             summary += " PDF/UA declaration dampened because structural quality contradicts it."

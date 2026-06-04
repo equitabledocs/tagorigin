@@ -68,9 +68,11 @@ ACCESSIBILITY_TOOLS = (
     "Adobe Acrobat",
     "CommonLook",
     "axesPDF",
+    "axes4",
     "NetCentric",
     "Foxit PhantomPDF",
     "Kofax Power PDF",
+    "PAC ",
 )
 
 
@@ -125,11 +127,14 @@ def m4_producer_authoring_tool(inspector: PdfInspector) -> SignalResult:
 # ------------------------------------------------------------------
 REMEDIATION_PRODUCER_PATTERNS = (
     r"PDFix SDK",
+    r"PDFix",
     r"Acrobat Pro DC",
     r"Adobe Acrobat.*DC",
     r"CommonLook",
     r"axesPDF",
+    r"axes4",
     r"NetCentric Technology",
+    r"NetCentric",
 )
 
 

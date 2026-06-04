@@ -86,13 +86,25 @@ class PdfInspector:
     # XMP loading
     # ------------------------------------------------------------------
     def _load_xmp(self) -> etree._Element | None:
+        raw: bytes | str | None = None
+        # Primary: pikepdf's xmp_metadata attribute
         try:
             raw = self.pdf.xmp_metadata
         except Exception:
             raw = None
+        # Fallback: read /Metadata stream directly from Root
+        if not raw:
+            try:
+                meta_stream = self.pdf.Root.get("/Metadata")
+                if meta_stream is not None and hasattr(meta_stream, "read_bytes"):
+                    raw = meta_stream.read_bytes()
+            except Exception:
+                raw = None
         if not raw:
             return None
         try:
+            if isinstance(raw, str):
+                raw = raw.encode("utf-8", errors="replace")
             return etree.fromstring(raw)
         except Exception:
             return None
@@ -609,6 +621,131 @@ class PdfInspector:
                         return False
             return True
         return True
+
+    # ------------------------------------------------------------------
+    # Phase 3: reading-order analysis (S13, S14)
+    # ------------------------------------------------------------------
+    def mcid_content_order(self, page_index: int) -> list[int]:
+        """Return MCIDs in content-stream order for the given page.
+
+        For authoring-tool exports, this order reflects text-frame drawing
+        order. For remediated PDFs the same order persists in the content
+        stream; what changes is the tree order.
+        """
+        if page_index >= len(self.pdf.pages):
+            return []
+        page = self.pdf.pages[page_index]
+        mcids: list[int] = []
+        try:
+            for ops, op in pikepdf.parse_content_stream(page):
+                if str(op) in ("BDC", "BMC") and len(ops) >= 2:
+                    props = ops[1]
+                    if isinstance(props, pikepdf.Dictionary):
+                        mcid = props.get("/MCID")
+                        if mcid is not None:
+                            try:
+                                mcids.append(int(mcid))
+                            except (TypeError, ValueError):
+                                pass
+        except Exception:
+            return []
+        return mcids
+
+    def mcid_tree_order_by_page(self) -> dict[int, list[int]]:
+        """Return MCIDs per page in structure-tree pre-order traversal order."""
+        result: dict[int, list[int]] = {}
+        root = self.struct_tree_root()
+        if root is None:
+            return result
+        # Build page object -> page index map
+        page_to_idx: dict[Any, int] = {}
+        for idx, page in enumerate(self.pdf.pages):
+            page_to_idx[page.unparse()] = idx
+        self._walk_tree_for_mcids(root, None, page_to_idx, result)
+        return result
+
+    def _walk_tree_for_mcids(
+        self,
+        node: Any,
+        current_page: int | None,
+        page_to_idx: dict[Any, int],
+        result: dict[int, list[int]],
+    ) -> None:
+        target = node
+        if isinstance(target, pikepdf.Object):
+            try:
+                target = self.pdf.get_object(target.objgen)
+            except Exception:
+                return
+        if not isinstance(target, pikepdf.Dictionary):
+            return
+        # Track /Pg if present
+        pg = self._get(target, "/Pg")
+        if pg is not None:
+            try:
+                current_page = page_to_idx.get(pg.unparse(), current_page)
+            except Exception:
+                pass
+        children = self._get(target, "/K")
+        if children is None:
+            return
+        if not isinstance(children, pikepdf.Array):
+            children = [children]
+        for child in children:
+            # Integer child = direct MCID reference under the parent's /Pg
+            if isinstance(child, int) and current_page is not None:
+                result.setdefault(current_page, []).append(child)
+            elif isinstance(child, pikepdf.Dictionary):
+                # /Type /MCR struct ref?
+                ctype = self._get(child, "/Type")
+                if ctype is not None and self._text(ctype) == "/MCR":
+                    mcid = self._get(child, "/MCID")
+                    page_ref = self._get(child, "/Pg")
+                    if page_ref is not None:
+                        try:
+                            page_idx = page_to_idx.get(page_ref.unparse(), current_page)
+                        except Exception:
+                            page_idx = current_page
+                    else:
+                        page_idx = current_page
+                    if mcid is not None and page_idx is not None:
+                        try:
+                            result.setdefault(page_idx, []).append(int(mcid))
+                        except (TypeError, ValueError):
+                            pass
+                else:
+                    self._walk_tree_for_mcids(child, current_page, page_to_idx, result)
+            else:
+                self._walk_tree_for_mcids(child, current_page, page_to_idx, result)
+
+    def reading_order_match_ratio(self) -> tuple[float, int]:
+        """Return (avg_match_ratio, pages_compared).
+
+        For each page, compare MCID sequence in tree order vs content-stream
+        order. Match ratio is the fraction of MCIDs that appear at the same
+        index in both lists, computed only on the prefix common to both.
+        Returns 0.0 if no MCIDs found on any page.
+        """
+        tree_by_page = self.mcid_tree_order_by_page()
+        if not tree_by_page:
+            return (0.0, 0)
+        ratios: list[float] = []
+        for page_idx, tree_mcids in tree_by_page.items():
+            content_mcids = self.mcid_content_order(page_idx)
+            if not tree_mcids or not content_mcids:
+                continue
+            common_len = min(len(tree_mcids), len(content_mcids))
+            if common_len == 0:
+                continue
+            matches = sum(
+                1
+                for i in range(common_len)
+                if tree_mcids[i] == content_mcids[i]
+            )
+            ratios.append(matches / common_len)
+        if not ratios:
+            return (0.0, 0)
+        return (sum(ratios) / len(ratios), len(ratios))
 
     # ------------------------------------------------------------------
     # Cleanup
